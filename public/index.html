@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini TTS | 沉浸式有声书</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="background-mesh"></div>
+
+    <nav class="navbar">
+        <div class="logo">
+            <i class="fa-solid fa-wave-square"></i>
+            <span>Gemini TTS</span>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="active">创作</a>
+            <a href="#">我的作品</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <header class="hero-section">
+            <h1>让文字<span class="gradient-text">发声</span></h1>
+            <p>基于 Gemini 2.5 下一代语音生成模型，为您的小说赋予情感与生命。</p>
+        </header>
+
+        <div class="editor-grid">
+            <!-- 左侧：输入控制 -->
+            <section class="control-panel glass-card">
+                <div class="input-group">
+                    <label for="apiKey">
+                        <i class="fa-solid fa-key"></i> API Key (可选)
+                        <span class="tooltip" data-tooltip="如果在服务器未配置环境变量，请在此输入">?</span>
+                    </label>
+                    <input type="password" id="apiKey" placeholder="在此粘贴您的 Gemini API Key..." autocomplete="off">
+                </div>
+
+                <div class="input-group">
+                    <label for="textInput" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-book-open"></i> 小说文本</span>
+                        <div class="file-upload-wrapper">
+                            <input type="file" id="fileInput" accept=".txt" style="display: none;">
+                            <button id="uploadBtn" class="secondary-btn"
+                                style="padding: 0.2rem 0.6rem; font-size: 0.8rem;">
+                                <i class="fa-solid fa-upload"></i> 上传 TXT
+                            </button>
+                        </div>
+                    </label>
+                    <textarea id="textInput" placeholder="在此输入或粘贴小说章节内容..."></textarea>
+                </div>
+
+                <div class="settings-row">
+                    <div class="input-group half">
+                        <label for="modelSelect"><i class="fa-solid fa-microchip"></i> 选择模型</label>
+                        <div class="custom-select">
+                            <select id="modelSelect">
+                                <option value="gemini-2.5-flash-preview-tts" selected>Gemini 2.5 Flash (速度快)</option>
+                                <option value="gemini-2.5-pro-preview-tts">Gemini 2.5 Pro (质量高)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="input-group half">
+                        <label for="voiceSelect"><i class="fa-solid fa-microphone-lines"></i> 选择声音</label>
+                        <div class="custom-select">
+                            <select id="voiceSelect">
+                                <!-- Female Voices -->
+                                <option value="Kore" selected>Kore (坚定女声)</option>
+                                <option value="Achernar">Achernar (温柔女声)</option>
+                                <option value="Aoede">Aoede (轻快女声)</option>
+                                <option value="Autonoe">Autonoe (明快女声)</option>
+                                <option value="Callirrhoe">Callirrhoe (随和女声)</option>
+                                <option value="Despina">Despina (温暖平滑)</option>
+                                <option value="Erinome">Erinome (清晰女声)</option>
+                                <option value="Gacrux">Gacrux (成熟女声)</option>
+                                <option value="Laomedeia">Laomedeia (乐观女声)</option>
+                                <option value="Leda">Leda (年轻女声)</option>
+                                <option value="Pulcherrima">Pulcherrima (直率女声)</option>
+                                <option value="Sulafat">Sulafat (自信温暖)</option>
+                                <option value="Vindemiatrix">Vindemiatrix (温柔沉稳)</option>
+                                <option value="Zephyr">Zephyr (活力女声)</option>
+
+                                <!-- Male Voices -->
+                                <option value="Puck">Puck (活泼男声)</option>
+                                <option value="Charon">Charon (低沉男声)</option>
+                                <option value="Fenrir">Fenrir (深沉男声)</option>
+                                <option value="Achird">Achird (友好男声)</option>
+                                <option value="Algenib">Algenib (沙哑男声)</option>
+                                <option value="Algieba">Algieba (流畅男声)</option>
+                                <option value="Alnilam">Alnilam (稳重男声)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group half">
+                        <label for="segmentLength"><i class="fa-solid fa-ruler-horizontal"></i> 分段长度 (字)</label>
+                        <input type="number" id="segmentLength" value="300" min="50" max="2000" step="10">
+                    </div>
+                </div>
+
+                <div class="button-group" style="display: flex; gap: 1rem;">
+                    <button id="previewBtn" class="secondary-btn"
+                        style="flex: 1; justify-content: center; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-main);">
+                        <i class="fa-solid fa-list-check"></i> 预览分段
+                    </button>
+                    <button id="generateBtn" class="primary-btn" style="flex: 2;">
+                        <span class="btn-text">开始生成音频</span>
+                        <span class="btn-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                        <div class="loader hidden"></div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 右侧：结果展示 -->
+            <section class="preview-panel glass-card">
+                <div class="empty-state" id="emptyState">
+                    <i class="fa-solid fa-headphones-simple"></i>
+                    <h3>准备就绪</h3>
+                    <p>在左侧输入文本并点击生成，您的音频将在此处播放。</p>
+                </div>
+
+                <div class="audio-result hidden" id="audioResult">
+                    <div class="playback-status">
+                        <div class="now-playing">
+                            <span class="status-badge" id="playerStatus">准备播放</span>
+                            <h3 id="currentSegmentText">...</h3>
+                        </div>
+                        <div class="audio-visualizer mini">
+                            <div class="bar"></div>
+                            <div class="bar"></div>
+                            <div class="bar"></div>
+                            <div class="bar"></div>
+                            <div class="bar"></div>
+                        </div>
+                    </div>
+
+                    <div class="player-controls-main">
+                        <audio id="audioPlayer" controls></audio>
+                        <div class="progress-info">
+                            <span>进度: <span id="currentProgress">0</span> / <span id="totalSegments">0</span> 段</span>
+                            <span id="downloadAllContainer" class="hidden">
+                                <a href="#" id="downloadAllLink" class="secondary-btn">
+                                    <i class="fa-solid fa-file-zipper"></i> 合并下载整章
+                                </a>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="segments-list glass-panel" id="segmentsList">
+                        <!-- Segments will be injected here -->
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
