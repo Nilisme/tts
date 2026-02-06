@@ -112,13 +112,14 @@ document.addEventListener('DOMContentLoaded', () => {
         playerStatus.textContent = "分段预览模式";
     });
 
-    generateBtn.addEventListener('click', startGeneration);
+    generateBtn.addEventListener('click', handleGenerateClick);
 
-    // ...
-
-    async function startGeneration() {
-        // Prevent re-entry: if already generating, ignore the click
-        if (isGenerating) return;
+    async function handleGenerateClick() {
+        // If currently generating, STOP it
+        if (isGenerating) {
+            stopGeneration();
+            return;
+        }
 
         const text = textInput.value.trim();
         const apiKey = apiKeyInput.value.trim();
@@ -131,15 +132,40 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Check if we need to prepare segments (if empty or text changed)
-        if (segments.length === 0) {
+        // If segments already exist (resume / retry scenario),
+        // reset any 'error' segments back to 'pending' so they get retried
+        if (segments.length > 0) {
+            const hasPendingWork = segments.some(s => s.status === 'pending' || s.status === 'error');
+            if (hasPendingWork) {
+                segments.forEach((seg, i) => {
+                    if (seg.status === 'error') {
+                        seg.status = 'pending';
+                        updateSegmentStatus(i, 'pending');
+                    }
+                });
+            } else {
+                // All segments are ready — user probably changed text, start fresh
+                prepareSegments(text);
+            }
+        } else {
             prepareSegments(text);
         }
 
+        playerStatus.style.color = ''; // reset error color
         setLoading(true);
 
-        // 2. Start Processing Queue (await to properly handle errors)
+        // Start Processing Queue (await to properly handle errors)
         await processQueue(apiKey, voice, model, voiceProfile);
+    }
+
+    function stopGeneration() {
+        if (abortController) {
+            abortController.abort();
+            abortController = null;
+        }
+        isGenerating = false;
+        setLoading(false);
+        playerStatus.textContent = "已手动停止";
     }
 
     function prepareSegments(text) {
@@ -174,56 +200,101 @@ document.addEventListener('DOMContentLoaded', () => {
     async function processQueue(apiKey, voice, model, voiceProfile) {
         isGenerating = true;
         abortController = new AbortController();
+        const CONCURRENCY = 2; // 2-way parallel generation
 
+        // Collect indices of pending segments
+        const pendingIndices = [];
         for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
-            if (segment.status !== 'pending') continue;
+            if (segments[i].status === 'pending') pendingIndices.push(i);
+        }
 
-            // Update UI to generating
-            updateSegmentStatus(i, 'generating');
+        let cursor = 0;       // next index in pendingIndices to dispatch
+        let hasError = false;  // flag to stop dispatching new tasks
+
+
+        function updateProgressUI() {
+            const readyCount = segments.filter(s => s.status === 'ready').length;
+            const generatingCount = segments.filter(s => s.status === 'generating').length;
+            playerStatus.textContent = `正在生成... (已完成 ${readyCount}/${segments.length}，并发 ${generatingCount} 段)`;
+            currentProgress.textContent = readyCount;
+        }
+
+        // Process a single segment by its index; returns when done
+        async function processOne(segIdx) {
+            const segment = segments[segIdx];
+            segment.status = 'generating'; // local state first
+            updateSegmentStatus(segIdx, 'generating');
+            updateProgressUI();
 
             try {
-                // Determine if this is the first segment (for "Prepare to Play" UX)
-                if (i === 0) {
-                    playerStatus.textContent = "正在生成第一段...";
-                }
-
-                const result = await generateSegmentAudio(segment.content, voice, model, apiKey, voiceProfile, abortController.signal);
-
-                // Success
+                const result = await generateSegmentAudio(
+                    segment.content, voice, model, apiKey, voiceProfile, abortController.signal
+                );
                 segment.status = 'ready';
                 segment.audioUrl = result.audioUrl;
-                updateSegmentStatus(i, 'ready');
+                updateSegmentStatus(segIdx, 'ready');
+                updateProgressUI();
 
-                // Auto-play first segment if player is idle
-                if (i === 0 && audioPlayer.paused) {
-                    playSegment(0);
-                }
 
             } catch (error) {
-                if (error.name === 'AbortError') break;
-                console.error(`Segment ${i} failed:`, error);
-
+                if (error.name === 'AbortError') {
+                    // Don't mark as error — user manually stopped
+                    if (segment.status === 'generating') {
+                        segment.status = 'pending';
+                        updateSegmentStatus(segIdx, 'pending');
+                    }
+                    throw error; // propagate to stop the pool
+                }
+                console.error(`Segment ${segIdx} failed:`, error);
                 segment.status = 'error';
-                updateSegmentStatus(i, 'error');
+                updateSegmentStatus(segIdx, 'error');
+                hasError = true;
 
-                // STOP ON ERROR:
-                // Show explicit message and break the loop so user can fix/retry.
-                playerStatus.textContent = `生成中断 (第 ${i + 1} 段出错)`;
+                playerStatus.textContent = `生成中断 (第 ${segIdx + 1} 段出错，点击按钮可重试)`;
                 playerStatus.style.color = '#ef4444';
-
-                // Since we stop here, we should ensure the next button click can resume/retry?
-                // For now, simple STOP.
-                isGenerating = false;
-                setLoading(false);
-                return; // Exit processQueue entirely
+                // Abort remaining in-flight requests
+                if (abortController) abortController.abort();
+                throw error;
             }
+        }
+
+        // Promise pool: keep up to CONCURRENCY tasks running at a time
+        try {
+            const running = new Set();
+
+            while (cursor < pendingIndices.length && !hasError) {
+                // Fill up to CONCURRENCY slots
+                while (running.size < CONCURRENCY && cursor < pendingIndices.length && !hasError) {
+                    const segIdx = pendingIndices[cursor++];
+                    const p = processOne(segIdx).then(() => running.delete(p), () => running.delete(p));
+                    running.add(p);
+                }
+                // Wait for at least one to finish before dispatching more
+                if (running.size > 0) {
+                    await Promise.race(running).catch(() => {});
+                }
+            }
+
+            // Wait for all remaining in-flight tasks
+            if (running.size > 0) {
+                await Promise.allSettled(running);
+            }
+        } catch (e) {
+            // Errors already handled inside processOne
         }
 
         isGenerating = false;
         setLoading(false);
-        playerStatus.textContent = "生成完毕";
-        downloadAllContainer.classList.remove('hidden');
+
+        const allReady = segments.every(s => s.status === 'ready');
+        if (allReady) {
+            playerStatus.textContent = "全部生成完毕";
+            playerStatus.style.color = '';
+            downloadAllContainer.classList.remove('hidden');
+        } else if (!hasError) {
+            playerStatus.textContent = "已停止";
+        }
+        // If hasError, the error message is already set above
     }
 
     async function generateSegmentAudio(text, voice, model, apiKey, voiceProfile, signal) {
@@ -379,12 +450,14 @@ document.addEventListener('DOMContentLoaded', () => {
         el.classList.remove('pending', 'generating', 'error');
         const iconDiv = el.querySelector('.segment-status');
 
-        if (status === 'generating') {
+        if (status === 'pending') {
+            el.classList.add('pending');
+            iconDiv.innerHTML = '<i class="fa-regular fa-clock"></i>';
+        } else if (status === 'generating') {
             el.classList.add('generating');
             iconDiv.innerHTML = '<i class="fa-solid fa-spinner"></i>';
         } else if (status === 'ready') {
             iconDiv.innerHTML = '<i class="fa-solid fa-play"></i>';
-            // Start preloading?
         } else if (status === 'error') {
             el.classList.add('error');
             iconDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
@@ -449,16 +522,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setLoading(isLoading) {
-        generateBtn.disabled = isLoading;
+        // Button is always clickable: either "generate" or "stop"
+        generateBtn.disabled = false;
         if (isLoading) {
-            btnText.textContent = '停止生成'; // Allow stop?
-            // Actually for MVP let's just indicate working.
-            // If user clicks again, it resets.
-            btnIcon.classList.add('hidden');
+            btnText.textContent = '停止生成';
+            btnIcon.innerHTML = '<i class="fa-solid fa-stop"></i>';
+            generateBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
             loader.classList.remove('hidden');
         } else {
             btnText.textContent = '开始生成音频';
-            btnIcon.classList.remove('hidden');
+            btnIcon.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
+            generateBtn.style.background = '';
             loader.classList.add('hidden');
         }
     }

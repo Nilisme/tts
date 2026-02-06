@@ -12,15 +12,20 @@ import { ProxyAgent, setGlobalDispatcher } from 'undici';
 // Setup environment
 config();
 
-// --- PROXY CONFIGURATION ---
-// Detect if we are running locally and need a proxy to access Google
-const PROXY_URL = process.env.HTTPS_PROXY || 'http://127.0.0.1:7890';
-try {
-    const proxyAgent = new ProxyAgent(PROXY_URL);
-    setGlobalDispatcher(proxyAgent);
-    console.log(`Using Proxy: ${PROXY_URL}`);
-} catch (error) {
-    console.warn('Failed to set proxy:', error.message);
+// --- PROXY CONFIGURATION (optional) ---
+// Only set proxy if HTTPS_PROXY env var is explicitly provided.
+// Without it, fetch goes direct — works on servers / environments that can reach Google directly.
+const PROXY_URL = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
+if (PROXY_URL) {
+    try {
+        const proxyAgent = new ProxyAgent(PROXY_URL);
+        setGlobalDispatcher(proxyAgent);
+        console.log(`Using Proxy: ${PROXY_URL}`);
+    } catch (error) {
+        console.warn('Failed to set proxy:', error.message);
+    }
+} else {
+    console.log('No proxy configured (set HTTPS_PROXY env var if needed).');
 }
 // ---------------------------
 
@@ -31,7 +36,7 @@ const PORT = process.env.PORT || 5678;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' })); // Limit request body size to prevent abuse
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
@@ -162,19 +167,27 @@ app.post('/api/generate', async (req, res) => {
         }
 
         const data = await response.json();
-        // Only log metadata, not the full base64 audio data
-        const audioDataLength = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data?.length || 0;
-        console.log(`Gemini API Response: candidates=${data.candidates?.length || 0}, audio data size=${audioDataLength} chars`);
 
-        // Extract Audio Data
+        // Extract Audio Data — search through all parts for inlineData with audio
         const candidate = data.candidates?.[0];
-        const audioPart = candidate?.content?.parts?.[0];
+        const parts = candidate?.content?.parts || [];
 
-        if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
-            throw new Error("No audio data returned from Gemini API.");
+        let base64Data = null;
+        for (const part of parts) {
+            if (part?.inlineData?.data) {
+                base64Data = part.inlineData.data;
+                break;
+            }
         }
 
-        const base64Data = audioPart.inlineData.data;
+        console.log(`Gemini API Response: candidates=${data.candidates?.length || 0}, parts=${parts.length}, audio data size=${base64Data?.length || 0} chars`);
+
+        if (!base64Data) {
+            // Log the actual response structure for debugging (without huge data)
+            const debugParts = parts.map(p => ({ keys: Object.keys(p), hasInlineData: !!p.inlineData, mimeType: p.inlineData?.mimeType }));
+            console.error('Response parts structure:', JSON.stringify(debugParts));
+            throw new Error("No audio data returned from Gemini API.");
+        }
         const audioBuffer = Buffer.from(base64Data, 'base64');
 
         // Generate unique filename
