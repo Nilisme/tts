@@ -82,8 +82,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const voiceProfileArrow = document.getElementById('voiceProfileArrow');
     const resetVoiceProfileBtn = document.getElementById('resetVoiceProfile');
 
-    // Default voice profile
+    // Default voice profile (from HTML)
     const defaultVoiceProfile = voiceProfileInput.value;
+
+    // --- Settings Persistence (localStorage) ---
+    const SETTINGS_KEY = 'gemini-tts-settings';
+
+    function saveSettings() {
+        try {
+            const settings = {
+                apiKey: apiKeyInput.value,
+                voice: voiceSelect.value,
+                model: modelSelect.value,
+                segmentLength: document.getElementById('segmentLength').value,
+                voiceProfile: voiceProfileInput.value,
+            };
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        } catch (e) { /* localStorage unavailable, ignore */ }
+    }
+
+    function loadSettings() {
+        try {
+            const raw = localStorage.getItem(SETTINGS_KEY);
+            if (!raw) return;
+            const s = JSON.parse(raw);
+            if (s.apiKey) apiKeyInput.value = s.apiKey;
+            if (s.voice) voiceSelect.value = s.voice;
+            if (s.model) modelSelect.value = s.model;
+            if (s.segmentLength) document.getElementById('segmentLength').value = s.segmentLength;
+            if (s.voiceProfile) voiceProfileInput.value = s.voiceProfile;
+        } catch (e) { /* parse error or localStorage unavailable, ignore */ }
+    }
+
+    // Restore settings on page load
+    loadSettings();
+
+    // Auto-save on change
+    apiKeyInput.addEventListener('input', saveSettings);
+    voiceSelect.addEventListener('change', saveSettings);
+    modelSelect.addEventListener('change', saveSettings);
+    document.getElementById('segmentLength').addEventListener('input', saveSettings);
+    voiceProfileInput.addEventListener('input', saveSettings);
 
     // Voice Profile toggle
     voiceProfileToggle.addEventListener('click', () => {
@@ -346,14 +385,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const nextSeg = segments[nextIndex];
             if (nextSeg.status === 'ready') {
                 playSegment(nextIndex);
-            } else {
-                // If next not ready, wait a bit or show loading (simple retry for MVP)
+            } else if (isGenerating) {
+                // Generation still running — wait and retry (max ~30s)
                 playerStatus.textContent = "正在缓冲下一段...";
-                setTimeout(() => playNextSegment(), 1000);
+                const maxBufferRetries = 30;
+                let retries = 0;
+                const waitForNext = () => {
+                    retries++;
+                    if (segments[nextIndex].status === 'ready') {
+                        playSegment(nextIndex);
+                    } else if (retries >= maxBufferRetries || !isGenerating) {
+                        playerStatus.textContent = "下一段尚未就绪";
+                    } else {
+                        setTimeout(waitForNext, 1000);
+                    }
+                };
+                setTimeout(waitForNext, 1000);
+            } else {
+                playerStatus.textContent = "下一段未生成";
             }
         } else {
             playerStatus.textContent = "播放结束";
-            // change icon back?
         }
     }
 
