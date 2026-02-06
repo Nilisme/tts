@@ -109,6 +109,37 @@
                     </div>
                 </div>
 
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" id="voiceProfileToggle">
+                        <label style="cursor: pointer; margin: 0;">
+                            <i class="fa-solid fa-user-tie"></i> 声音配置文件
+                            <span class="tooltip" data-tooltip="为 TTS 模型建立一致的角色人设，确保分段音频的声音风格统一。参考 Gemini TTS 提示指南。">?</span>
+                        </label>
+                        <i class="fa-solid fa-chevron-down" id="voiceProfileArrow" style="transition: transform 0.3s; font-size: 0.8rem; opacity: 0.6;"></i>
+                    </div>
+                    <div id="voiceProfileContainer" style="display: none; margin-top: 0.5rem;">
+                        <textarea id="voiceProfile" rows="8" style="font-size: 0.85rem; line-height: 1.5; font-family: 'Noto Sans SC', sans-serif;">## AUDIO PROFILE: Serena
+An experienced female audiobook narrator specializing in romance novels. Her voice is soft, delicate, and slightly magnetic. She excels at creating atmosphere through voice, immersing listeners in the emotional world of the story.
+
+## THE SCENE
+A late-night recording studio bathed in warm amber light, a cup of hot tea resting nearby. The narrator wears headphones, an open romance novel before her, telling a moving love story to her listeners.
+
+### DIRECTOR'S NOTES
+Style: Narrate with a soft, intimate, and emotionally rich tone, like telling a love story to a close friend late at night. The voice should feel warm and slightly breathy, drawing the listener into the emotional world of the characters. Maintain absolute consistency in voice character throughout — this is the same narrator across every chapter. Do not add any commentary or response. Simply narrate the text faithfully with feeling.
+
+Pacing: Read at a gentle, unhurried pace. Slow down slightly during emotional or romantic moments to let the feelings linger. Speed up subtly during tense or exciting scenes. Use meaningful pauses after emotionally charged sentences to let the weight of the words settle.
+
+Accent: Standard Mandarin Chinese, soft and elegant pronunciation. Slightly breathy quality on intimate passages.
+
+### TRANSCRIPT</textarea>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 0.3rem;">
+                            <button id="resetVoiceProfile" class="secondary-btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">
+                                <i class="fa-solid fa-rotate-left"></i> 恢复默认
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="button-group" style="display: flex; gap: 1rem;">
                     <button id="previewBtn" class="secondary-btn"
                         style="flex: 1; justify-content: center; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-main);">

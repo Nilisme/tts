@@ -44,7 +44,7 @@ if (!fs.existsSync(uploadsDir)) {
 // Routes
 app.post('/api/generate', async (req, res) => {
     try {
-        const { text, voice, model, apiKey } = req.body;
+        const { text, voice, model, apiKey, voiceProfile } = req.body;
 
         // Use provided key or fallback to env, supporting comma-separated keys
         let envKeys = [];
@@ -88,9 +88,18 @@ app.post('/api/generate', async (req, res) => {
 
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${currentKey}`;
 
+                // Build prompt: if voiceProfile is provided, use it as directing context
+                // This ensures consistent voice character across all segments
+                let promptText;
+                if (voiceProfile && voiceProfile.trim()) {
+                    promptText = `${voiceProfile.trim()}\n\n${text}`;
+                } else {
+                    promptText = `Please read the following text exactly as it is written. Do not generate any conversational response. Maintain a consistent, steady narrator voice throughout.\n\n${text}`;
+                }
+
                 const payload = {
                     contents: [{
-                        parts: [{ text: `Please read the following text exactly as it is written. Do not generate any conversational response. Text: "${text}"` }]
+                        parts: [{ text: promptText }]
                     }],
                     generationConfig: {
                         responseModalities: ["AUDIO"],

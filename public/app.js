@@ -78,6 +78,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const modelSelect = document.getElementById('modelSelect'); // New element
+    const voiceProfileInput = document.getElementById('voiceProfile');
+    const voiceProfileToggle = document.getElementById('voiceProfileToggle');
+    const voiceProfileContainer = document.getElementById('voiceProfileContainer');
+    const voiceProfileArrow = document.getElementById('voiceProfileArrow');
+    const resetVoiceProfileBtn = document.getElementById('resetVoiceProfile');
+
+    // Default voice profile
+    const defaultVoiceProfile = voiceProfileInput.value;
+
+    // Voice Profile toggle
+    voiceProfileToggle.addEventListener('click', () => {
+        const isHidden = voiceProfileContainer.style.display === 'none';
+        voiceProfileContainer.style.display = isHidden ? 'block' : 'none';
+        voiceProfileArrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    });
+
+    // Reset voice profile to default
+    resetVoiceProfileBtn.addEventListener('click', () => {
+        voiceProfileInput.value = defaultVoiceProfile;
+    });
 
     const previewBtn = document.getElementById('previewBtn');
 
@@ -103,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const apiKey = apiKeyInput.value.trim();
         const voice = voiceSelect.value;
         const model = modelSelect.value;
+        const voiceProfile = voiceProfileInput.value.trim();
 
         if (!text) {
             alert('请输入小说文本内容！');
@@ -110,19 +131,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Check if we need to prepare segments (if empty or text changed)
-        // For MVP simplicity: if segments is empty, prepare it. 
-        // If users clicked preview, segments is already populated.
-        // But what if they changed text? Let's just re-prepare to be safe unless we track state complexly.
-        // Actually, better UX: if segments exist and are pending, use them.
-
-        if (segments.length === 0 /* || textInput.dirty */) { // strict mode re-prepare
+        if (segments.length === 0) {
             prepareSegments(text);
         }
 
         setLoading(true);
 
         // 2. Start Processing Queue
-        processQueue(apiKey, voice, model);
+        processQueue(apiKey, voice, model, voiceProfile);
     }
 
     function prepareSegments(text) {
@@ -154,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSegmentsList();
     }
 
-    async function processQueue(apiKey, voice, model) {
+    async function processQueue(apiKey, voice, model, voiceProfile) {
         isGenerating = true;
         abortController = new AbortController();
 
@@ -171,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     playerStatus.textContent = "正在生成第一段...";
                 }
 
-                const result = await generateSegmentAudio(segment.content, voice, model, apiKey, abortController.signal);
+                const result = await generateSegmentAudio(segment.content, voice, model, apiKey, voiceProfile, abortController.signal);
 
                 // Success
                 segment.status = 'ready';
@@ -209,11 +225,11 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadAllContainer.classList.remove('hidden');
     }
 
-    async function generateSegmentAudio(text, voice, model, apiKey, signal) {
+    async function generateSegmentAudio(text, voice, model, apiKey, voiceProfile, signal) {
         const response = await fetch('/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, voice, model, apiKey }),
+            body: JSON.stringify({ text, voice, model, apiKey, voiceProfile }),
             signal
         });
 
