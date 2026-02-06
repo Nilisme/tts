@@ -74,51 +74,54 @@ app.post('/api/generate', async (req, res) => {
         let lastError;
         // Try enough times to cover all keys plus a few transient retries
         const maxRetries = Math.max(usableKeys.length * 2, 5);
-        const controller = new AbortController();
-        const signal = controller.signal;
 
         let currentKeyIndex = 0;
+
+        // Build prompt once (same for all retries)
+        let promptText;
+        if (voiceProfile && voiceProfile.trim()) {
+            promptText = `${voiceProfile.trim()}\n\n${text}`;
+        } else {
+            promptText = `Please read the following text exactly as it is written. Do not generate any conversational response. Maintain a consistent, steady narrator voice throughout.\n\n${text}`;
+        }
+
+        const payload = {
+            contents: [{
+                parts: [{ text: promptText }]
+            }],
+            generationConfig: {
+                responseModalities: ["AUDIO"],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: {
+                            voiceName: voice || "Puck"
+                        }
+                    }
+                }
+            }
+        };
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             const currentKey = usableKeys[currentKeyIndex];
             const maskedKey = currentKey.slice(0, 5) + '...';
+
+            // Per-attempt timeout (120s for TTS which can be slow)
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 120000);
 
             try {
                 if (attempt > 1) console.log(`Attempt ${attempt}/${maxRetries} using key ${maskedKey}...`);
 
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${currentKey}`;
 
-                // Build prompt: if voiceProfile is provided, use it as directing context
-                // This ensures consistent voice character across all segments
-                let promptText;
-                if (voiceProfile && voiceProfile.trim()) {
-                    promptText = `${voiceProfile.trim()}\n\n${text}`;
-                } else {
-                    promptText = `Please read the following text exactly as it is written. Do not generate any conversational response. Maintain a consistent, steady narrator voice throughout.\n\n${text}`;
-                }
-
-                const payload = {
-                    contents: [{
-                        parts: [{ text: promptText }]
-                    }],
-                    generationConfig: {
-                        responseModalities: ["AUDIO"],
-                        speechConfig: {
-                            voiceConfig: {
-                                prebuiltVoiceConfig: {
-                                    voiceName: voice || "Puck"
-                                }
-                            }
-                        }
-                    }
-                };
-
                 response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
-                    signal
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeout);
 
                 if (response.ok) break; // Success!
 
@@ -143,6 +146,7 @@ app.post('/api/generate', async (req, res) => {
                 throw new Error(`Gemini API Error: ${status} ${response.statusText} - ${errText}`);
 
             } catch (err) {
+                clearTimeout(timeout);
                 lastError = err;
                 console.error(`Attempt ${attempt} failed:`, err.message);
 
@@ -158,7 +162,9 @@ app.post('/api/generate', async (req, res) => {
         }
 
         const data = await response.json();
-        console.log("Gemini API Response:", JSON.stringify(data, null, 2));
+        // Only log metadata, not the full base64 audio data
+        const audioDataLength = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data?.length || 0;
+        console.log(`Gemini API Response: candidates=${data.candidates?.length || 0}, audio data size=${audioDataLength} chars`);
 
         // Extract Audio Data
         const candidate = data.candidates?.[0];
@@ -272,7 +278,6 @@ app.post('/api/merge', async (req, res) => {
 });
 
 // Start Server
-const server = app.listen(0, () => {
-    const port = server.address().port;
-    console.log(`Server is running at http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`Server is running at http://localhost:${PORT}`);
 });

@@ -60,13 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInput.value = '';
     });
 
-    // Char count update
+    // Char count update (charCount may not exist in HTML, guard it)
     textInput.addEventListener('input', () => {
         const len = textInput.value.length;
-        charCount.textContent = `${len} 字`;
+        if (charCount) charCount.textContent = `${len} 字`;
     });
-
-    generateBtn.addEventListener('click', startGeneration);
 
     audioPlayer.addEventListener('ended', () => {
         playNextSegment();
@@ -119,6 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ...
 
     async function startGeneration() {
+        // Prevent re-entry: if already generating, ignore the click
+        if (isGenerating) return;
+
         const text = textInput.value.trim();
         const apiKey = apiKeyInput.value.trim();
         const voice = voiceSelect.value;
@@ -137,8 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setLoading(true);
 
-        // 2. Start Processing Queue
-        processQueue(apiKey, voice, model, voiceProfile);
+        // 2. Start Processing Queue (await to properly handle errors)
+        await processQueue(apiKey, voice, model, voiceProfile);
     }
 
     function prepareSegments(text) {
@@ -348,13 +349,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (seg.status === 'ready') playSegment(i);
             };
 
-            el.innerHTML = `
-                <div class="segment-status"><i class="fa-regular fa-clock"></i></div>
-                <div class="segment-content">
-                    <p>${seg.content}</p>
-                    <div class="segment-meta">片段 ${i + 1}</div>
-                </div>
-            `;
+            // Use DOM API to avoid XSS from user input
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'segment-status';
+            statusDiv.innerHTML = '<i class="fa-regular fa-clock"></i>';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'segment-content';
+
+            const p = document.createElement('p');
+            p.textContent = seg.content; // safe: textContent escapes HTML
+
+            const meta = document.createElement('div');
+            meta.className = 'segment-meta';
+            meta.textContent = `片段 ${i + 1}`;
+
+            contentDiv.appendChild(p);
+            contentDiv.appendChild(meta);
+            el.appendChild(statusDiv);
+            el.appendChild(contentDiv);
             segmentsList.appendChild(el);
         });
     }
@@ -422,7 +435,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetState() {
-        if (abortController) abortController.abort();
+        if (abortController) {
+            abortController.abort();
+            abortController = null;
+        }
+        isGenerating = false;
         segments = [];
         currentSegmentIndex = 0;
         audioPlayer.pause();
