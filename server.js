@@ -220,10 +220,36 @@ app.post('/api/generate', async (req, res) => {
     } catch (error) {
         console.error("Error generating speech:", error);
         res.status(500).json({
-            error: error.message || "Internal Server Error",
+            error: friendlyError(error.message),
         });
     }
 });
+
+// Map raw error messages to user-friendly Chinese descriptions
+function friendlyError(msg) {
+    if (!msg) return '服务器内部错误，请稍后重试';
+    const m = msg.toLowerCase();
+    if (m.includes('api key not valid') || m.includes('api_key_invalid'))
+        return 'API Key 无效，请检查后重试';
+    if (m.includes('quota') || m.includes('429') || m.includes('resource_exhausted'))
+        return 'API 调用次数已达上限，请稍后再试或更换 Key';
+    if (m.includes('permission') || m.includes('403'))
+        return 'API Key 权限不足，请确认已开启 Generative Language API';
+    if (m.includes('not found') || m.includes('404'))
+        return '模型不存在或已下线，请尝试切换模型';
+    if (m.includes('abort') || m.includes('timeout') || m.includes('timed out'))
+        return '请求超时，请检查网络连接后重试';
+    if (m.includes('fetch failed') || m.includes('econnrefused') || m.includes('econnreset'))
+        return '无法连接到 Google API，请检查网络或代理设置';
+    if (m.includes('no audio data'))
+        return 'API 未返回音频数据，请缩短文本或更换模型重试';
+    if (m.includes('safety') || m.includes('blocked'))
+        return '内容被安全过滤器拦截，请修改文本后重试';
+    if (m.includes('invalid argument') || m.includes('400'))
+        return '请求参数有误，请检查文本内容和设置';
+    // Fallback: return original but truncate if too long
+    return msg.length > 100 ? msg.slice(0, 100) + '...' : msg;
+}
 
 // Merge Endpoint
 app.post('/api/merge', async (req, res) => {
@@ -286,7 +312,7 @@ app.post('/api/merge', async (req, res) => {
 
     } catch (error) {
         console.error("Merge error:", error);
-        res.status(500).json({ error: "Merge failed" });
+        res.status(500).json({ error: "音频合并失败，请重试" });
     }
 });
 
