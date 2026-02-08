@@ -470,6 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.id = `seg-${i}`;
             el.onclick = () => {
                 if (seg.status === 'ready') playSegment(i);
+                else if (seg.status === 'error') retrySingleSegment(i);
             };
 
             // Use DOM API to avoid XSS from user input
@@ -512,7 +513,46 @@ document.addEventListener('DOMContentLoaded', () => {
             iconDiv.innerHTML = '<i class="fa-solid fa-play"></i>';
         } else if (status === 'error') {
             el.classList.add('error');
-            iconDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+            iconDiv.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
+        }
+    }
+
+    async function retrySingleSegment(index) {
+        const segment = segments[index];
+        if (!segment || segment.status === 'generating') return;
+
+        const apiKey = apiKeyInput.value.trim();
+        const voice = voiceSelect.value;
+        const model = modelSelect.value;
+        const voiceProfile = voiceProfileInput.value.trim();
+
+        segment.status = 'generating';
+        updateSegmentStatus(index, 'generating');
+        playerStatus.textContent = `正在重试第 ${index + 1} 段...`;
+        playerStatus.style.color = '';
+
+        try {
+            const result = await generateSegmentAudio(
+                segment.content, voice, model, apiKey, voiceProfile
+            );
+            segment.status = 'ready';
+            segment.audioUrl = result.audioUrl;
+            updateSegmentStatus(index, 'ready');
+
+            const readyCount = segments.filter(s => s.status === 'ready').length;
+            playerStatus.textContent = `第 ${index + 1} 段重试成功 (${readyCount}/${segments.length})`;
+
+            // Check if all done
+            if (segments.every(s => s.status === 'ready')) {
+                playerStatus.textContent = '全部生成完毕';
+                downloadAllContainer.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error(`Retry segment ${index} failed:`, error);
+            segment.status = 'error';
+            updateSegmentStatus(index, 'error');
+            playerStatus.textContent = `第 ${index + 1} 段重试失败，点击可再次重试`;
+            playerStatus.style.color = '#ef4444';
         }
     }
 

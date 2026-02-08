@@ -466,6 +466,26 @@ audio {
     animation: spin 1s linear infinite;
 }
 
+.segment-item.error {
+    opacity: 0.7;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.segment-item.error:hover {
+    background: rgba(239, 68, 68, 0.1);
+    opacity: 1;
+    cursor: pointer;
+}
+
+.segment-item.error .segment-status {
+    color: #ef4444;
+}
+
+.segment-item.error .segment-meta::after {
+    content: ' · 点击重试';
+    color: #ef4444;
+}
+
 .segment-content {
     flex: 1;
     min-width: 0;
