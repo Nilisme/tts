@@ -4,10 +4,12 @@ import { config } from 'dotenv';
 import cors from 'cors';
 import wav from 'wav';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { ProxyAgent, setGlobalDispatcher } from 'undici';
+import rateLimit from 'express-rate-limit';
 
 // Setup environment
 config();
@@ -34,9 +36,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 5678;
 
-// Middleware
-app.use(cors());
+// Middleware — CORS restricted to same origin
+app.use(cors({
+    origin: (_origin, callback) => {
+        // Allow requests with no origin (same-origin, curl, server-to-server)
+        // and requests from the same host (any port on localhost)
+        if (!_origin || _origin.startsWith(`http://localhost`) || _origin.startsWith(`http://127.0.0.1`)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+}));
 app.use(express.json({ limit: '5mb' })); // Limit request body size to prevent abuse
+
+// Rate limiting
+const apiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 30,                  // max 30 requests per minute per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: '请求过于频繁，请稍后再试' },
+});
+app.use('/api/', apiLimiter);
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
@@ -201,11 +223,19 @@ app.post('/api/generate', async (req, res) => {
             bitDepth: 16
         });
 
+        // Calculate actual duration from PCM data
+        const sampleRate = 24000;
+        const channels = 1;
+        const bitDepth = 16;
+        const durationSec = audioBuffer.length / (sampleRate * channels * (bitDepth / 8));
+        const durationFormatted = `${Math.floor(durationSec / 60)}:${String(Math.floor(durationSec % 60)).padStart(2, '0')}`;
+
         writer.on('finish', () => {
             res.json({
                 success: true,
                 audioUrl: `/uploads/${filename}`,
-                duration: "Unknown"
+                duration: durationFormatted,
+                durationSeconds: Math.round(durationSec)
             });
         });
 
@@ -275,8 +305,11 @@ app.post('/api/merge', async (req, res) => {
 
         for (const file of files) {
             const p = path.join(uploadsDir, path.basename(file)); // security: basename
-            if (fs.existsSync(p)) {
-                fileBuffers.push(fs.readFileSync(p));
+            try {
+                const buf = await fsp.readFile(p);
+                fileBuffers.push(buf);
+            } catch {
+                // skip missing files
             }
         }
 
@@ -306,7 +339,7 @@ app.post('/api/merge', async (req, res) => {
 
         const finalBuffer = Buffer.concat([newHeader, combinedData]);
 
-        fs.writeFileSync(outputPath, finalBuffer);
+        await fsp.writeFile(outputPath, finalBuffer);
 
         res.json({ success: true, url: `/uploads/${outputFile}` });
 
