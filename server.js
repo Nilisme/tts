@@ -107,6 +107,12 @@ app.post('/api/generate', async (req, res) => {
             return res.status(400).json({ error: "Text is required" });
         }
 
+        // Limit per-segment text length to prevent API abuse / runaway costs
+        const MAX_TEXT_LENGTH = 5000;
+        if (text.length > MAX_TEXT_LENGTH) {
+            return res.status(400).json({ error: `文本过长（${text.length} 字），单次请求最多 ${MAX_TEXT_LENGTH} 字` });
+        }
+
         const modelName = model || "gemini-2.5-flash-preview-tts";
         if (!ALLOWED_MODELS.has(modelName)) {
             return res.status(400).json({ error: "不支持的模型，请选择有效的 TTS 模型" });
