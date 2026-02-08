@@ -141,13 +141,164 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const modelSelect = document.getElementById('modelSelect'); // New element
     const voiceProfileInput = document.getElementById('voiceProfile');
-    const voiceProfileToggle = document.getElementById('voiceProfileToggle');
-    const voiceProfileContainer = document.getElementById('voiceProfileContainer');
-    const voiceProfileArrow = document.getElementById('voiceProfileArrow');
-    const resetVoiceProfileBtn = document.getElementById('resetVoiceProfile');
+    const presetGrid = document.getElementById('presetGrid');
+    const customProfileWrapper = document.getElementById('customProfileWrapper');
 
-    // Default voice profile (from HTML)
-    const defaultVoiceProfile = voiceProfileInput.value;
+    // ===== Voice Profile Presets =====
+    const VOICE_PRESETS = [
+        {
+            id: 'romance',
+            name: '温柔言情',
+            icon: 'fa-solid fa-heart',
+            desc: '柔美亲切，适合都市言情/甜宠小说',
+            profile: `## AUDIO PROFILE: Serena
+An experienced female audiobook narrator specializing in romance novels. Her voice is soft, delicate, and slightly magnetic. She excels at creating atmosphere through voice, immersing listeners in the emotional world of the story.
+
+## THE SCENE
+A late-night recording studio bathed in warm amber light, a cup of hot tea resting nearby. The narrator wears headphones, an open romance novel before her, telling a moving love story to her listeners.
+
+### DIRECTOR'S NOTES
+Style: Narrate with a soft, intimate, and emotionally rich tone, like telling a love story to a close friend late at night. The voice should feel warm and slightly breathy, drawing the listener into the emotional world of the characters. Maintain absolute consistency in voice character throughout — this is the same narrator across every chapter. Do not add any commentary or response. Simply narrate the text faithfully with feeling.
+
+Pacing: Read at a gentle, unhurried pace. Slow down slightly during emotional or romantic moments to let the feelings linger. Speed up subtly during tense or exciting scenes. Use meaningful pauses after emotionally charged sentences to let the weight of the words settle.
+
+Accent: Standard Mandarin Chinese, soft and elegant pronunciation. Slightly breathy quality on intimate passages.
+
+### TRANSCRIPT`
+        },
+        {
+            id: 'suspense',
+            name: '悬疑惊悚',
+            icon: 'fa-solid fa-skull',
+            desc: '低沉紧迫，适合悬疑/推理/恐怖小说',
+            profile: `## AUDIO PROFILE: Vincent
+A veteran male audiobook narrator known for his gripping suspense readings. His voice is deep, measured, and carries an undercurrent of tension. He masterfully builds atmosphere through subtle vocal shifts.
+
+## THE SCENE
+A dimly lit studio with a single desk lamp casting long shadows. The narrator sits in focused silence, channeling the dark intensity of the story into every word, drawing the listener deeper into the mystery.
+
+### DIRECTOR'S NOTES
+Style: Narrate with a low, controlled, and suspenseful tone. Build tension gradually through pacing and vocal intensity. Use a slightly hushed quality during eerie or frightening passages. Keep the voice steady and authoritative to maintain credibility. Do not add any commentary or response. Simply narrate the text faithfully with intensity.
+
+Pacing: Maintain a deliberate, measured pace. Slow down during moments of revelation or horror to heighten suspense. Speed up during chase or action sequences. Use dramatic pauses before key plot twists to let anticipation build.
+
+Accent: Standard Mandarin Chinese, clear and resonant pronunciation. Deeper register for atmosphere.
+
+### TRANSCRIPT`
+        },
+        {
+            id: 'xianxia',
+            name: '武侠仙侠',
+            icon: 'fa-solid fa-dragon',
+            desc: '大气磅礴，适合玄幻/武侠/修仙小说',
+            profile: `## AUDIO PROFILE: Tianming
+A distinguished narrator with a rich, resonant voice perfect for epic fantasy and martial arts tales. His delivery carries the grandeur of ancient worlds and the thrill of supernatural combat.
+
+## THE SCENE
+An ancient study room with scrolls and calligraphy brushes, incense smoke curling in the air. The narrator channels the spirit of a storyteller from ages past, bringing legendary tales of cultivators and heroes to life.
+
+### DIRECTOR'S NOTES
+Style: Narrate with a rich, grand, and powerful tone. Bring weight and majesty to descriptions of cultivation breakthroughs, epic battles, and vast landscapes. Use a more restrained, contemplative tone for philosophical or meditative passages. Convey the awe of supernatural powers and ancient worlds. Do not add any commentary or response. Simply narrate the text faithfully with grandeur.
+
+Pacing: Use a steady, flowing pace for world-building descriptions. Accelerate during combat sequences with sharp, energetic delivery. Slow to a reverent pace during moments of enlightenment or emotional depth. Pause meaningfully at chapter transitions and major revelations.
+
+Accent: Standard Mandarin Chinese, with classical elegance and clear enunciation. Strong, resonant tone for battle cries and dramatic moments.
+
+### TRANSCRIPT`
+        },
+        {
+            id: 'casual',
+            name: '轻松日常',
+            icon: 'fa-solid fa-face-smile',
+            desc: '自然活泼，适合都市/校园/轻喜剧小说',
+            profile: `## AUDIO PROFILE: Yuki
+A young, energetic narrator with a bright and expressive voice. She brings characters to life with natural, conversational delivery that feels like chatting with a friend.
+
+## THE SCENE
+A cozy café with soft background music. The narrator sits comfortably with a latte, casually recounting a fun and engaging story to a close friend, with animated expressions and genuine warmth.
+
+### DIRECTOR'S NOTES
+Style: Narrate with a light, natural, and conversational tone. Keep the energy warm and upbeat. Express genuine amusement during humorous moments and gentle sincerity during emotional ones. The delivery should feel effortless and relatable. Do not add any commentary or response. Simply narrate the text faithfully with charm.
+
+Pacing: Read at a natural, conversational speed — not too fast, not too slow. Speed up slightly during exciting or funny moments. Slow down gently for reflective passages. Use natural pauses as if speaking spontaneously.
+
+Accent: Standard Mandarin Chinese, youthful and clear pronunciation. Relaxed and approachable vocal quality.
+
+### TRANSCRIPT`
+        },
+        {
+            id: 'news',
+            name: '新闻播报',
+            icon: 'fa-solid fa-newspaper',
+            desc: '专业标准，适合新闻/资讯/知识类内容',
+            profile: `## AUDIO PROFILE: Anchor
+A professional news anchor with clear, authoritative, and neutral delivery. The voice conveys trustworthiness and objectivity while maintaining listener engagement.
+
+## THE SCENE
+A modern broadcast studio with professional equipment. The anchor sits at the news desk with perfect posture, delivering information with precision and clarity.
+
+### DIRECTOR'S NOTES
+Style: Narrate with a clear, professional, and neutral tone. Maintain objectivity and authority throughout. Keep the delivery crisp and articulate. Avoid emotional coloring — let the content speak for itself. Do not add any commentary or response. Simply read the text faithfully with professional clarity.
+
+Pacing: Read at a steady, moderate pace optimized for comprehension. Maintain consistent rhythm throughout. Use brief pauses between sentences and slightly longer pauses between paragraphs or topic transitions.
+
+Accent: Standard Mandarin Chinese (Putonghua), broadcast-quality pronunciation. Clear articulation with no regional accent.
+
+### TRANSCRIPT`
+        },
+        {
+            id: 'custom',
+            name: '自定义',
+            icon: 'fa-solid fa-pen-fancy',
+            desc: '自由编写你自己的声音配置文件',
+            profile: ''
+        }
+    ];
+
+    let currentPresetId = 'romance'; // default
+
+    function renderPresetGrid() {
+        presetGrid.innerHTML = '';
+        VOICE_PRESETS.forEach(preset => {
+            const card = document.createElement('div');
+            card.className = `preset-card${preset.id === currentPresetId ? ' active' : ''}`;
+            card.dataset.presetId = preset.id;
+            card.innerHTML = `
+                <div class="preset-card-icon"><i class="${preset.icon}"></i></div>
+                <div class="preset-card-info">
+                    <span class="preset-card-name">${preset.name}</span>
+                    <span class="preset-card-desc">${preset.desc}</span>
+                </div>
+            `;
+            card.addEventListener('click', () => selectPreset(preset.id));
+            presetGrid.appendChild(card);
+        });
+    }
+
+    function selectPreset(presetId) {
+        currentPresetId = presetId;
+        // Update active state on cards
+        presetGrid.querySelectorAll('.preset-card').forEach(c => {
+            c.classList.toggle('active', c.dataset.presetId === presetId);
+        });
+        // Show/hide custom textarea
+        if (presetId === 'custom') {
+            customProfileWrapper.style.display = 'block';
+        } else {
+            customProfileWrapper.style.display = 'none';
+        }
+        saveSettings();
+    }
+
+    function getActiveVoiceProfile() {
+        if (currentPresetId === 'custom') {
+            return voiceProfileInput.value.trim();
+        }
+        const preset = VOICE_PRESETS.find(p => p.id === currentPresetId);
+        return preset ? preset.profile : '';
+    }
+
+    renderPresetGrid();
 
     // --- Settings Persistence (localStorage) ---
     const SETTINGS_KEY = 'gemini-tts-settings';
@@ -159,7 +310,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 voice: voiceSelect.value,
                 model: modelSelect.value,
                 segmentLength: document.getElementById('segmentLength').value,
-                voiceProfile: voiceProfileInput.value,
+                voicePresetId: currentPresetId,
+                customVoiceProfile: voiceProfileInput.value,
             };
             localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
         } catch (e) { /* localStorage unavailable, ignore */ }
@@ -174,7 +326,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (s.voice) voiceSelect.value = s.voice;
             if (s.model) modelSelect.value = s.model;
             if (s.segmentLength) document.getElementById('segmentLength').value = s.segmentLength;
-            if (s.voiceProfile) voiceProfileInput.value = s.voiceProfile;
+            // Voice profile preset
+            if (s.voicePresetId) {
+                selectPreset(s.voicePresetId);
+            } else if (s.voiceProfile) {
+                // Migrate from old format: put old value into custom
+                voiceProfileInput.value = s.voiceProfile;
+                selectPreset('custom');
+            }
+            if (s.customVoiceProfile) voiceProfileInput.value = s.customVoiceProfile;
         } catch (e) { /* parse error or localStorage unavailable, ignore */ }
     }
 
@@ -188,17 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('segmentLength').addEventListener('input', saveSettings);
     voiceProfileInput.addEventListener('input', saveSettings);
 
-    // Voice Profile toggle
-    voiceProfileToggle.addEventListener('click', () => {
-        const isHidden = voiceProfileContainer.style.display === 'none';
-        voiceProfileContainer.style.display = isHidden ? 'block' : 'none';
-        voiceProfileArrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-    });
 
-    // Reset voice profile to default
-    resetVoiceProfileBtn.addEventListener('click', () => {
-        voiceProfileInput.value = defaultVoiceProfile;
-    });
 
     const previewBtn = document.getElementById('previewBtn');
 
@@ -228,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const apiKey = apiKeyInput.value.trim();
         const voice = voiceSelect.value;
         const model = modelSelect.value;
-        const voiceProfile = voiceProfileInput.value.trim();
+        const voiceProfile = getActiveVoiceProfile();
 
         if (!text) {
             showToast('请输入小说文本内容！', 'warning');
@@ -591,7 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const apiKey = apiKeyInput.value.trim();
         const voice = voiceSelect.value;
         const model = modelSelect.value;
-        const voiceProfile = voiceProfileInput.value.trim();
+        const voiceProfile = getActiveVoiceProfile();
 
         segment.status = 'generating';
         updateSegmentStatus(index, 'generating');
