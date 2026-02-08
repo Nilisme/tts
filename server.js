@@ -33,6 +33,21 @@ if (PROXY_URL) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// ===== Input Whitelists =====
+export const ALLOWED_MODELS = new Set([
+    'gemini-2.5-flash-preview-tts',
+    'gemini-2.5-pro-preview-tts',
+]);
+
+export const ALLOWED_VOICES = new Set([
+    // Female
+    'Kore', 'Achernar', 'Aoede', 'Autonoe', 'Callirrhoe', 'Despina',
+    'Erinome', 'Gacrux', 'Laomedeia', 'Leda', 'Pulcherrima', 'Sulafat',
+    'Vindemiatrix', 'Zephyr',
+    // Male
+    'Puck', 'Charon', 'Fenrir', 'Achird', 'Algenib', 'Algieba', 'Alnilam',
+]);
+
 const app = express();
 const PORT = process.env.PORT || 5678;
 
@@ -93,8 +108,16 @@ app.post('/api/generate', async (req, res) => {
         }
 
         const modelName = model || "gemini-2.5-flash-preview-tts";
+        if (!ALLOWED_MODELS.has(modelName)) {
+            return res.status(400).json({ error: "不支持的模型，请选择有效的 TTS 模型" });
+        }
 
-        console.log(`Generating audio using [${modelName}] - Text length: ${text.length}, Voice: ${voice || 'Puck'}`);
+        const voiceName = voice || "Puck";
+        if (!ALLOWED_VOICES.has(voiceName)) {
+            return res.status(400).json({ error: "不支持的声音，请选择有效的声音选项" });
+        }
+
+        console.log(`Generating audio using [${modelName}] - Text length: ${text.length}, Voice: ${voiceName}`);
 
         // Retry logic with Key Rotation
         let response;
@@ -121,7 +144,7 @@ app.post('/api/generate', async (req, res) => {
                 speechConfig: {
                     voiceConfig: {
                         prebuiltVoiceConfig: {
-                            voiceName: voice || "Puck"
+                            voiceName: voiceName
                         }
                     }
                 }
