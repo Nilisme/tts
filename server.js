@@ -317,24 +317,69 @@ app.post('/api/merge', async (req, res) => {
             throw new Error("No valid files found to merge");
         }
 
-        // Logic:
-        // WAV Header is 44 bytes.
-        // We take header from first file.
-        // We take data (slice 44) from all files.
-        // We update size in header.
+        // Parse each WAV to find the actual 'data' chunk offset and extract PCM
+        function findDataChunk(buf) {
+            // RIFF header: 12 bytes (RIFF + size + WAVE)
+            // Then sub-chunks: each has 4-byte id + 4-byte size + data
+            let offset = 12;
+            while (offset + 8 <= buf.length) {
+                const chunkId = buf.toString('ascii', offset, offset + 4);
+                const chunkSize = buf.readUInt32LE(offset + 4);
+                if (chunkId === 'data') {
+                    return { dataOffset: offset + 8, dataSize: chunkSize };
+                }
+                offset += 8 + chunkSize;
+                // WAV chunks are word-aligned (pad to even)
+                if (offset % 2 !== 0) offset++;
+            }
+            // Fallback: assume standard 44-byte header
+            return { dataOffset: 44, dataSize: buf.length - 44 };
+        }
 
-        const header = fileBuffers[0].subarray(0, 44);
-        const dataParts = fileBuffers.map(b => b.subarray(44));
+        // Extract PCM data from each file
+        const dataParts = fileBuffers.map(b => {
+            const { dataOffset, dataSize } = findDataChunk(b);
+            return b.subarray(dataOffset, dataOffset + dataSize);
+        });
         const totalDataLength = dataParts.reduce((acc, b) => acc + b.length, 0);
-
         const combinedData = Buffer.concat(dataParts);
 
-        // Update header fields
-        // Offset 4: ChunkSize = 36 + SubChunk2Size
-        // Offset 40: SubChunk2Size = totalDataLength
+        // Build a clean 44-byte WAV header from the first file's format info
+        const src = fileBuffers[0];
+        const fmtChunk = (() => {
+            let off = 12;
+            while (off + 8 <= src.length) {
+                if (src.toString('ascii', off, off + 4) === 'fmt ') {
+                    return {
+                        audioFormat: src.readUInt16LE(off + 8),
+                        numChannels: src.readUInt16LE(off + 10),
+                        sampleRate:  src.readUInt32LE(off + 12),
+                        byteRate:    src.readUInt32LE(off + 16),
+                        blockAlign:  src.readUInt16LE(off + 20),
+                        bitsPerSample: src.readUInt16LE(off + 22),
+                    };
+                }
+                const sz = src.readUInt32LE(off + 4);
+                off += 8 + sz;
+                if (off % 2 !== 0) off++;
+            }
+            // Fallback defaults (matches Gemini TTS output)
+            return { audioFormat: 1, numChannels: 1, sampleRate: 24000, byteRate: 48000, blockAlign: 2, bitsPerSample: 16 };
+        })();
 
-        const newHeader = Buffer.from(header);
-        newHeader.writeUInt32LE(totalDataLength + 36, 4);
+        const newHeader = Buffer.alloc(44);
+        newHeader.write('RIFF', 0);
+        newHeader.writeUInt32LE(36 + totalDataLength, 4);
+        newHeader.write('WAVE', 8);
+        newHeader.write('fmt ', 12);
+        newHeader.writeUInt32LE(16, 16);                          // fmt chunk size
+        newHeader.writeUInt16LE(fmtChunk.audioFormat, 20);
+        newHeader.writeUInt16LE(fmtChunk.numChannels, 22);
+        newHeader.writeUInt32LE(fmtChunk.sampleRate, 24);
+        newHeader.writeUInt32LE(fmtChunk.byteRate, 28);
+        newHeader.writeUInt16LE(fmtChunk.blockAlign, 32);
+        newHeader.writeUInt16LE(fmtChunk.bitsPerSample, 34);
+        newHeader.write('data', 36);
         newHeader.writeUInt32LE(totalDataLength, 40);
 
         const finalBuffer = Buffer.concat([newHeader, combinedData]);
