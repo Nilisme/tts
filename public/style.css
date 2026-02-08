@@ -173,6 +173,12 @@ textarea {
     height: 300px;
 }
 
+textarea.drag-over {
+    border-color: #a855f7;
+    box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.3);
+    background: rgba(168, 85, 247, 0.05);
+}
+
 textarea:focus,
 input:focus,
 select:focus {

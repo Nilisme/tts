@@ -60,6 +60,31 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInput.value = '';
     });
 
+    // Drag & drop TXT file onto textarea
+    textInput.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        textInput.classList.add('drag-over');
+    });
+    textInput.addEventListener('dragleave', () => {
+        textInput.classList.remove('drag-over');
+    });
+    textInput.addEventListener('drop', (e) => {
+        e.preventDefault();
+        textInput.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        if (file.type && !file.type.startsWith('text/')) {
+            alert('请拖入文本文件 (.txt)');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            textInput.value = ev.target.result;
+            textInput.dispatchEvent(new Event('input'));
+        };
+        reader.readAsText(file, 'UTF-8');
+    });
+
     // Char count update (charCount may not exist in HTML, guard it)
     textInput.addEventListener('input', () => {
         const len = textInput.value.length;
@@ -183,7 +208,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else {
-                // All segments are ready — user probably changed text, start fresh
+                // All segments are ready — confirm before overwriting
+                if (!confirm('当前已有生成完毕的音频，确定要重新生成吗？')) {
+                    return;
+                }
                 prepareSegments(text);
             }
         } else {
