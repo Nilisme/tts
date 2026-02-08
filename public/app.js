@@ -1,4 +1,43 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ===== Toast Notification System =====
+    const toastContainer = (() => {
+        const el = document.createElement('div');
+        el.className = 'toast-container';
+        document.body.appendChild(el);
+        return el;
+    })();
+
+    const TOAST_ICONS = {
+        warning: 'fa-solid fa-triangle-exclamation',
+        error: 'fa-solid fa-circle-xmark',
+        success: 'fa-solid fa-circle-check',
+        info: 'fa-solid fa-circle-info',
+    };
+
+    function showToast(message, type = 'warning', duration = 3500) {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        toast.innerHTML = `
+            <i class="toast-icon ${TOAST_ICONS[type] || TOAST_ICONS.info}"></i>
+            <span class="toast-message">${message}</span>
+            <button class="toast-close"><i class="fa-solid fa-xmark"></i></button>
+        `;
+
+        const dismiss = () => {
+            toast.classList.add('toast-out');
+            toast.addEventListener('animationend', () => toast.remove());
+        };
+
+        toast.querySelector('.toast-close').addEventListener('click', dismiss);
+
+        toastContainer.appendChild(toast);
+
+        if (duration > 0) setTimeout(dismiss, duration);
+
+        return toast;
+    }
+
     // DOM Elements
     const generateBtn = document.getElementById('generateBtn');
     const textInput = document.getElementById('textInput');
@@ -43,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Simple check
         if (file.type && !file.type.startsWith('text/')) {
-            alert('请上传文本文件 (.txt)');
+            showToast('请上传文本文件 (.txt)', 'warning');
             return;
         }
 
@@ -74,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.dataTransfer.files[0];
         if (!file) return;
         if (file.type && !file.type.startsWith('text/')) {
-            alert('请拖入文本文件 (.txt)');
+            showToast('请拖入文本文件 (.txt)', 'warning');
             return;
         }
         const reader = new FileReader();
@@ -168,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     previewBtn.addEventListener('click', () => {
         const text = textInput.value.trim();
         if (!text) {
-            alert('请输入小说文本内容！');
+            showToast('请输入小说文本内容！', 'warning');
             return;
         }
         prepareSegments(text);
@@ -192,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceProfile = voiceProfileInput.value.trim();
 
         if (!text) {
-            alert('请输入小说文本内容！');
+            showToast('请输入小说文本内容！', 'warning');
             return;
         }
 
@@ -588,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Filter only ready segments
         const readySegments = segments.filter(s => s.status === 'ready' && s.audioUrl);
         if (readySegments.length === 0) {
-            alert('没有生成好的音频可供下载');
+            showToast('没有生成好的音频可供下载', 'warning');
             return;
         }
 
@@ -620,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (e) {
             console.error(e);
-            alert("合并下载失败，请单独下载片段。");
+            showToast('合并下载失败，请单独下载片段。', 'error');
         } finally {
             btn.innerHTML = originalText;
             btn.style.pointerEvents = 'auto';
